@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
+	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
 )
 
 type difftestpair struct {
@@ -28,9 +28,9 @@ type difftestpair struct {
 	expected_output []string
 }
 
-var d1 = pkgutil.Directory{"Dir1", []string{}}
-var d2 = pkgutil.Directory{"Dir2", []string{"file1"}}
-var d3 = pkgutil.Directory{"Dir2", []string{"file1", "file2"}}
+var d1 = pkgutil.Directory{Root: "Dir1", Content: []string{}}
+var d2 = pkgutil.Directory{Root: "Dir2", Content: []string{"file1"}}
+var d3 = pkgutil.Directory{Root: "Dir2", Content: []string{"file1", "file2"}}
 
 func TestGetAddedEntries(t *testing.T) {
 	var additiontests = []difftestpair{
@@ -65,10 +65,10 @@ func TestGetDeletedEntries(t *testing.T) {
 }
 
 func TestGetModifiedEntries(t *testing.T) {
-	var testdir1 = pkgutil.Directory{"test_files/dir1/", []string{"file1", "file2", "file3"}}
-	var testdir2 = pkgutil.Directory{"test_files/dir2/", []string{"file1", "file2", "file4"}}
-	var testdir3 = pkgutil.Directory{"test_files/dir1_copy/", []string{"file1", "file2", "file3"}}
-	var testdir4 = pkgutil.Directory{"test_files/dir2_modified/", []string{"file1", "file2", "file4"}}
+	var testdir1 = pkgutil.Directory{Root: "test_files/dir1/", Content: []string{"file1", "file2", "file3"}}
+	var testdir2 = pkgutil.Directory{Root: "test_files/dir2/", Content: []string{"file1", "file2", "file4"}}
+	var testdir3 = pkgutil.Directory{Root: "test_files/dir1_copy/", Content: []string{"file1", "file2", "file3"}}
+	var testdir4 = pkgutil.Directory{Root: "test_files/dir2_modified/", Content: []string{"file1", "file2", "file4"}}
 
 	var modifiedtests = []difftestpair{
 		{[2]pkgutil.Directory{d1, d1}, []string{}},
@@ -150,9 +150,32 @@ func TestCheckSameFile(t *testing.T) {
 				t.Errorf("Expected error but got none")
 			} else {
 				if output != test.expected_output {
-					t.Errorf("\nExpected: %s\nGot: %s\n", test.expected_output, output)
+					t.Errorf("\nExpected: %v\nGot: %v\n", test.expected_output, output)
 				}
 			}
+		}
+	}
+}
+
+func TestHasFilepathPrefix(t *testing.T) {
+	type test struct {
+		prefix       string
+		path         string
+		expectedBool bool
+	}
+
+	var tests = []test{
+		{"/foo", "/foo/bar", true},
+		{"/foo/", "/foo/bar", true},
+		{"/foo/bar", "/foo", false},
+		{"/foo/bar", "/foo/", false},
+		{"/foo", "/foobar", false},
+	}
+
+	for _, test := range tests {
+		hasPrefix := pkgutil.HasFilepathPrefix(test.path, test.prefix)
+		if hasPrefix != test.expectedBool {
+			t.Errorf("Got unexpected response: %v for prefix: %s and path: %s", hasPrefix, test.prefix, test.path)
 		}
 	}
 }

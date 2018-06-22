@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package util
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -51,6 +52,25 @@ func GetSize(path string) int64 {
 		return size
 	}
 	return stat.Size()
+}
+
+//GetFileContents returns the contents of a file at the specified path
+func GetFileContents(path string) (*string, error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, err
+	}
+
+	contents, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	strContents := string(contents)
+	//If file is empty, return nil
+	if strContents == "" {
+		return nil, nil
+	}
+	return &strContents, nil
 }
 
 func getDirectorySize(path string) (int64, error) {
@@ -111,6 +131,18 @@ func CreateDirectoryEntries(root string, entryNames []string) (entries []Directo
 	return entries
 }
 
+func CheckSameSymlink(f1name, f2name string) (bool, error) {
+	link1, err := os.Readlink(f1name)
+	if err != nil {
+		return false, err
+	}
+	link2, err := os.Readlink(f2name)
+	if err != nil {
+		return false, err
+	}
+	return (link1 == link2), nil
+}
+
 func CheckSameFile(f1name, f2name string) (bool, error) {
 	// Check first if files differ in size and immediately return
 	f1stat, err := os.Stat(f1name)
@@ -140,4 +172,38 @@ func CheckSameFile(f1name, f2name string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+// HasFilepathPrefix checks if the given file path begins with prefix
+func HasFilepathPrefix(path, prefix string) bool {
+	path = filepath.Clean(path)
+	prefix = filepath.Clean(prefix)
+	pathArray := strings.Split(path, "/")
+	prefixArray := strings.Split(prefix, "/")
+
+	if len(pathArray) < len(prefixArray) {
+		return false
+	}
+	for index := range prefixArray {
+		if prefixArray[index] == pathArray[index] {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// given a path to a directory, check if it has any contents
+func DirIsEmpty(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	_, err = f.Readdir(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err
 }

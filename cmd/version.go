@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/GoogleCloudPlatform/container-diff/version"
+	"github.com/GoogleContainerTools/container-diff/version"
 	"github.com/spf13/cobra"
 )
 

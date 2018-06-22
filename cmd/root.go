@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,27 +17,40 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	goflag "flag"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
-	"github.com/GoogleCloudPlatform/container-diff/differs"
-	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
-	"github.com/GoogleCloudPlatform/container-diff/util"
-	"github.com/docker/docker/client"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/daemon"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
+
+	"github.com/GoogleContainerTools/container-diff/differs"
+	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
+	"github.com/GoogleContainerTools/container-diff/util"
+	"github.com/google/go-containerregistry/pkg/v1"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
 var json bool
+
 var save bool
-var types string
+var types diffTypes
+var noCache bool
 
 var LogLevel string
+var format string
 
 type validatefxn func(args []string) error
 
@@ -81,7 +94,7 @@ func outputResults(resultMap map[string]util.Result) {
 		if json {
 			results[i] = result.OutputStruct()
 		} else {
-			err := result.OutputText(analyzerType)
+			err := result.OutputText(analyzerType, format)
 			if err != nil {
 				logrus.Error(err)
 			}
@@ -104,12 +117,11 @@ func validateArgs(args []string, validatefxns ...validatefxn) error {
 	return nil
 }
 
-func checkIfValidAnalyzer(flagtypes string) error {
-	if flagtypes == "" {
-		return errors.New("Please provide at least one analyzer to run")
+func checkIfValidAnalyzer(_ []string) error {
+	if len(types) == 0 {
+		types = []string{"apt"}
 	}
-	analyzers := strings.Split(flagtypes, ",")
-	for _, name := range analyzers {
+	for _, name := range types {
 		if _, exists := differs.Analyzers[name]; !exists {
 			return fmt.Errorf("Argument %s is not a valid analyzer", name)
 		}
@@ -117,38 +129,198 @@ func checkIfValidAnalyzer(flagtypes string) error {
 	return nil
 }
 
-func getPrepperForImage(image string) (pkgutil.Prepper, error) {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		return nil, err
-	}
-	if pkgutil.IsTar(image) {
-		return pkgutil.TarPrepper{
-			Source: image,
-			Client: cli,
-		}, nil
+func getImageForName(imageName string) (pkgutil.Image, error) {
+	logrus.Infof("retrieving image: %s", imageName)
+	var img v1.Image
+	var err error
+	if pkgutil.IsTar(imageName) {
+		start := time.Now()
+		img, err = tarball.ImageFromPath(imageName, nil)
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("retrieving image from tar took %f seconds", elapsed.Seconds())
+	} else if strings.HasPrefix(imageName, DaemonPrefix) {
+		// remove the daemon prefix
+		imageName = strings.Replace(imageName, DaemonPrefix, "", -1)
 
-	} else if strings.HasPrefix(image, DaemonPrefix) {
-		return pkgutil.DaemonPrepper{
-			Source: strings.Replace(image, DaemonPrefix, "", -1),
-			Client: cli,
-		}, nil
+		ref, err := name.ParseReference(imageName, name.WeakValidation)
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+
+		start := time.Now()
+		// TODO(nkubala): specify gzip.NoCompression here when functional options are supported
+		img, err = daemon.Image(ref, &daemon.ReadOptions{
+			Buffer: true,
+		})
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("retrieving image from daemon took %f seconds", elapsed.Seconds())
+	} else {
+		// either has remote prefix or has no prefix, in which case we force remote
+		imageName = strings.Replace(imageName, RemotePrefix, "", -1)
+		ref, err := name.ParseReference(imageName, name.WeakValidation)
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		auth, err := authn.DefaultKeychain.Resolve(ref.Context().Registry)
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		start := time.Now()
+		img, err = remote.Image(ref, auth, http.DefaultTransport)
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("retrieving remote image took %f seconds", elapsed.Seconds())
 	}
-	// either has remote prefix or has no prefix, in which case we force remote
-	return pkgutil.CloudPrepper{
-		Source: strings.Replace(image, RemotePrefix, "", -1),
-		Client: cli,
+
+	// create tempdir and extract fs into it
+	var layers []pkgutil.Layer
+	if includeLayers() {
+		start := time.Now()
+		imgLayers, err := img.Layers()
+		if err != nil {
+			return pkgutil.Image{}, err
+		}
+		for _, layer := range imgLayers {
+			layerStart := time.Now()
+			digest, err := layer.Digest()
+			path, err := getExtractPathForName(digest.String())
+			if err != nil {
+				return pkgutil.Image{
+					Layers: layers,
+				}, err
+			}
+			if err := pkgutil.GetFileSystemForLayer(layer, path, nil); err != nil {
+				return pkgutil.Image{
+					Layers: layers,
+				}, err
+			}
+			layers = append(layers, pkgutil.Layer{
+				FSPath: path,
+			})
+			elapsed := time.Now().Sub(layerStart)
+			logrus.Infof("time elapsed retrieving layer: %fs", elapsed.Seconds())
+		}
+		elapsed := time.Now().Sub(start)
+		logrus.Infof("time elapsed retrieving image layers: %fs", elapsed.Seconds())
+	}
+
+	path, err := getExtractPathForImage(imageName, img)
+	// extract fs into provided dir
+	if err := pkgutil.GetFileSystemForImage(img, path, nil); err != nil {
+		return pkgutil.Image{
+			FSPath: path,
+			Layers: layers,
+		}, err
+	}
+	return pkgutil.Image{
+		Image:  img,
+		Source: imageName,
+		FSPath: path,
+		Layers: layers,
 	}, nil
+}
+
+func getExtractPathForImage(imageName string, image v1.Image) (string, error) {
+	start := time.Now()
+	digest, err := image.Digest()
+	if err != nil {
+		return "", err
+	}
+	elapsed := time.Now().Sub(start)
+	logrus.Infof("time elapsed retrieving image digest: %fs", elapsed.Seconds())
+	return getExtractPathForName(pkgutil.RemoveTag(imageName) + "@" + digest.String())
+}
+
+func getExtractPathForName(name string) (string, error) {
+	var path string
+	var err error
+	if !noCache {
+		path, err = cacheDir(name)
+		if err != nil {
+			return "", err
+		}
+		// if cachedir doesn't exist, create it
+		if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+			err = os.MkdirAll(path, 0700)
+			if err != nil {
+				return "", err
+			}
+			logrus.Infof("caching filesystem at %s", path)
+		}
+	} else {
+		// otherwise, create tempdir
+		logrus.Infof("skipping caching")
+		path, err = ioutil.TempDir("", strings.Replace(name, "/", "", -1))
+		if err != nil {
+			return "", err
+		}
+	}
+	return path, nil
+}
+
+func includeLayers() bool {
+	for _, t := range types {
+		if t == "layer" {
+			return true
+		}
+	}
+	return false
+}
+
+func cacheDir(imageName string) (string, error) {
+	dir, err := homedir.Dir()
+	if err != nil {
+		return "", err
+	}
+	rootDir := filepath.Join(dir, ".container-diff", "cache")
+	imageName = strings.Replace(imageName, string(os.PathSeparator), "", -1)
+	return filepath.Join(rootDir, filepath.Clean(imageName)), nil
 }
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&LogLevel, "verbosity", "v", "warning", "This flag controls the verbosity of container-diff.")
+	RootCmd.PersistentFlags().StringVarP(&format, "format", "", "", "Format to output diff in.")
 	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+}
+
+// Define a type named "diffSlice" as a slice of strings
+type diffTypes []string
+
+// Now, for our new type, implement the two methods of
+// the flag.Value interface...
+// The first method is String() string
+func (d *diffTypes) String() string {
+	return strings.Join(*d, ",")
+}
+
+// The second method is Set(value string) error
+func (d *diffTypes) Set(value string) error {
+	// Dedupe repeated elements.
+	for _, t := range *d {
+		if t == value {
+			return nil
+		}
+	}
+	*d = append(*d, value)
+	return nil
+}
+
+func (d *diffTypes) Type() string {
+	return "Diff Types"
 }
 
 func addSharedFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&json, "json", "j", false, "JSON Output defines if the diff should be returned in a human readable format (false) or a JSON (true).")
-	cmd.Flags().StringVarP(&types, "types", "t", "apt", "This flag sets the list of analyzer types to use.  It expects a comma separated list of supported analyzers.")
+	cmd.Flags().VarP(&types, "type", "t", "This flag sets the list of analyzer types to use. Set it repeatedly to use multiple analyzers.")
 	cmd.Flags().BoolVarP(&save, "save", "s", false, "Set this flag to save rather than remove the final image filesystems on exit.")
 	cmd.Flags().BoolVarP(&util.SortSize, "order", "o", false, "Set this flag to sort any file/package results by descending size. Otherwise, they will be sorted by name.")
+	cmd.Flags().BoolVarP(&noCache, "no-cache", "n", false, "Set this to force retrieval of image filesystem on each run.")
 }

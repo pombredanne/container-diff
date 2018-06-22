@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"html/template"
 	"os"
 	"strings"
 	"text/tabwriter"
+	"text/template"
 
 	"github.com/sirupsen/logrus"
 )
@@ -32,9 +32,13 @@ var templates = map[string]string{
 	"SingleVersionPackageDiff":    SingleVersionDiffOutput,
 	"MultiVersionPackageDiff":     MultiVersionDiffOutput,
 	"HistDiff":                    HistoryDiffOutput,
+	"MetadataDiff":                MetadataDiffOutput,
 	"DirDiff":                     FSDiffOutput,
+	"MultipleDirDiff":             FSLayerDiffOutput,
+	"FilenameDiff":                FilenameDiffOutput,
 	"ListAnalyze":                 ListAnalysisOutput,
 	"FileAnalyze":                 FileAnalysisOutput,
+	"FileLayerAnalyze":            FileLayerAnalysisOutput,
 	"MultiVersionPackageAnalyze":  MultiVersionPackageOutput,
 	"SingleVersionPackageAnalyze": SingleVersionPackageOutput,
 }
@@ -73,6 +77,26 @@ func TemplateOutput(diff interface{}, templateType string) error {
 	err = tmpl.Execute(w, diff)
 	if err != nil {
 		logrus.Error(err)
+		return err
+	}
+	w.Flush()
+	return nil
+}
+
+func TemplateOutputFromFormat(diff interface{}, templateType string, format string) error {
+	if format == "" {
+		return TemplateOutput(diff, templateType)
+	}
+	funcs := template.FuncMap{"join": strings.Join}
+	tmpl, err := template.New("tmpl").Funcs(funcs).Parse(format)
+	if err != nil {
+		logrus.Warningf("User specified format resulted in error, printing default output.")
+		logrus.Error(err)
+		return TemplateOutput(diff, templateType)
+	}
+	w := tabwriter.NewWriter(os.Stdout, 8, 8, 8, ' ', 0)
+	err = tmpl.Execute(w, diff)
+	if err != nil {
 		return err
 	}
 	w.Flush()

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2016 Google, Inc. All rights reserved.
+# Copyright 2018 Google, Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 set -e
 
 echo "Running go tests..."
-go test `go list ./... | grep -v vendor`
+go test -timeout 60s `go list ./... | grep -v vendor`
 
 echo "Checking gofmt..."
 files=$(find . -name "*.go" | grep -v vendor/ | xargs gofmt -l -s)
@@ -47,13 +47,4 @@ set -e
 if [[ ! -z ${files} ]]; then
 	echo "Boilerplate missing in: ${files}."
 	exit 1
-fi
-
-if [ ! "$(git status --porcelain)" ]; then
-	# Check gazelle if everything is up to date.
-	bazel run //:gazelle
-	if [ "$(git status --porcelain)" ]; then
-		echo "BUILD files out of date. Run 'bazel run //:gazelle' to update them."
-		exit 1
-	fi
 fi

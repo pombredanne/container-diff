@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ import (
 	"regexp"
 	"strings"
 
-	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
-	"github.com/GoogleCloudPlatform/container-diff/util"
+	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
+	"github.com/GoogleContainerTools/container-diff/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -49,8 +49,12 @@ func (a PipAnalyzer) getPackages(image pkgutil.Image) (map[string]map[string]uti
 	path := image.FSPath
 	packages := make(map[string]map[string]util.PackageInfo)
 	pythonPaths := []string{}
-	if image.Config.Config.Env != nil {
-		paths := getPythonPaths(image.Config.Config.Env)
+	config, err := image.Image.ConfigFile()
+	if err != nil {
+		return packages, err
+	}
+	if config.Config.Env != nil {
+		paths := getPythonPaths(config.Config.Env)
 		for _, p := range paths {
 			pythonPaths = append(pythonPaths, p)
 		}
@@ -123,17 +127,21 @@ func addToMap(packages map[string]map[string]util.PackageInfo, pack string, path
 
 func getPythonVersion(pathToLayer string) ([]string, error) {
 	matches := []string{}
-	libPath := filepath.Join(pathToLayer, "usr/local/lib")
-	libContents, err := ioutil.ReadDir(libPath)
-	if err != nil {
-		return matches, err
-	}
+	pattern := regexp.MustCompile("^python[0-9]+\\.[0-9]+$")
 
-	for _, file := range libContents {
-		pattern := regexp.MustCompile("^python[0-9]+\\.[0-9]+$")
-		match := pattern.FindString(file.Name())
-		if match != "" {
-			matches = append(matches, match)
+	libPaths := []string{"usr/local/lib", "usr/lib"}
+	for _, lp := range libPaths {
+		libPath := filepath.Join(pathToLayer, lp)
+		libContents, err := ioutil.ReadDir(libPath)
+		if err != nil {
+			logrus.Debugf("Could not find %s to determine Python version", err)
+			continue
+		}
+		for _, file := range libContents {
+			match := pattern.FindString(file.Name())
+			if match != "" {
+				matches = append(matches, match)
+			}
 		}
 	}
 	return matches, nil

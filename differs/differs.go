@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ package differs
 import (
 	"fmt"
 
-	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
-	"github.com/GoogleCloudPlatform/container-diff/util"
+	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
+	"github.com/GoogleContainerTools/container-diff/util"
 	"github.com/sirupsen/logrus"
 )
 
@@ -42,11 +42,14 @@ type Analyzer interface {
 }
 
 var Analyzers = map[string]Analyzer{
-	"history": HistoryAnalyzer{},
-	"file":    FileAnalyzer{},
-	"apt":     AptAnalyzer{},
-	"pip":     PipAnalyzer{},
-	"node":    NodeAnalyzer{},
+	"history":  HistoryAnalyzer{},
+	"metadata": MetadataAnalyzer{},
+	"file":     FileAnalyzer{},
+	"layer":    FileLayerAnalyzer{},
+	"apt":      AptAnalyzer{},
+	"rpm":      RPMAnalyzer{},
+	"pip":      PipAnalyzer{},
+	"node":     NodeAnalyzer{},
 }
 
 func (req DiffRequest) GetDiff() (map[string]util.Result, error) {
@@ -65,7 +68,7 @@ func (req DiffRequest) GetDiff() (map[string]util.Result, error) {
 
 	var err error
 	if len(results) == 0 {
-		err = fmt.Errorf("Could not perform diff on %s and %s", img1, img2)
+		err = fmt.Errorf("Could not perform diff on %v and %v", img1, img2)
 	} else {
 		err = nil
 	}
@@ -89,7 +92,7 @@ func (req SingleRequest) GetAnalysis() (map[string]util.Result, error) {
 
 	var err error
 	if len(results) == 0 {
-		err = fmt.Errorf("Could not perform analysis on %s", img)
+		err = fmt.Errorf("Could not perform analysis on %v", img)
 	} else {
 		err = nil
 	}

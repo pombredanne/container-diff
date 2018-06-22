@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import (
 	"reflect"
 	"testing"
 
-	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
-	"github.com/GoogleCloudPlatform/container-diff/util"
+	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
+	"github.com/GoogleContainerTools/container-diff/util"
 )
 
 func TestGetNodePackages(t *testing.T) {
@@ -71,7 +71,7 @@ func TestGetNodePackages(t *testing.T) {
 			t.Errorf("Expected error but got none.")
 		}
 		if !reflect.DeepEqual(packages, test.expected) {
-			t.Errorf("Expected: %s but got: %s", test.expected, packages)
+			t.Errorf("Expected: %v but got: %v", test.expected, packages)
 		}
 	}
 }

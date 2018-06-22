@@ -1,0 +1,17 @@
+[
+  {
+    "Image1": "gcr.io/gcp-runtimes/metadata-base",
+    "Image2": "gcr.io/gcp-runtimes/metadata-modified",
+    "DiffType": "Metadata",
+    "Diff": {
+      "Adds": [
+        "ExposedPorts: 1234/tcp:{}",
+        "Entrypoint: /entrypoint"
+      ],
+      "Dels": [
+        "ExposedPorts: 1234/tcp:{} 4321/tcp:{}",
+        "Entrypoint: "
+      ]
+    }
+  }
+]

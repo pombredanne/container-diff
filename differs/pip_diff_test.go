@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Google, Inc. All rights reserved.
+Copyright 2018 Google, Inc. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@ import (
 	"reflect"
 	"testing"
 
-	pkgutil "github.com/GoogleCloudPlatform/container-diff/pkg/util"
-	"github.com/GoogleCloudPlatform/container-diff/util"
+	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
+	"github.com/GoogleContainerTools/container-diff/util"
+	"github.com/google/go-containerregistry/pkg/v1"
 )
 
 func TestGetPythonVersion(t *testing.T) {
@@ -33,12 +34,12 @@ func TestGetPythonVersion(t *testing.T) {
 		{
 			layerPath:        "testDirs/pipTests/pythonVersionTests/notAFolder",
 			expectedVersions: []string{},
-			err:              true,
+			err:              false,
 		},
 		{
 			layerPath:        "testDirs/pipTests/pythonVersionTests/noLibLayer",
 			expectedVersions: []string{},
-			err:              true,
+			err:              false,
 		},
 		{
 			layerPath:        "testDirs/pipTests/pythonVersionTests/noPythonLayer",
@@ -85,6 +86,9 @@ func TestGetPythonPackages(t *testing.T) {
 			descrip: "noPackagesTest",
 			image: pkgutil.Image{
 				FSPath: "testDirs/pipTests/noPackagesTest",
+				Image: &pkgutil.TestImage{
+					Config: &v1.ConfigFile{},
+				},
 			},
 			expectedPackages: map[string]map[string]util.PackageInfo{},
 		},
@@ -92,6 +96,9 @@ func TestGetPythonPackages(t *testing.T) {
 			descrip: "packagesMultiVersion, no PYTHONPATH",
 			image: pkgutil.Image{
 				FSPath: "testDirs/pipTests/packagesMultiVersion",
+				Image: &pkgutil.TestImage{
+					Config: &v1.ConfigFile{},
+				},
 			},
 			expectedPackages: map[string]map[string]util.PackageInfo{
 				"packageone": {
@@ -108,6 +115,9 @@ func TestGetPythonPackages(t *testing.T) {
 			descrip: "packagesSingleVersion, no PYTHONPATH",
 			image: pkgutil.Image{
 				FSPath: "testDirs/pipTests/packagesSingleVersion",
+				Image: &pkgutil.TestImage{
+					Config: &v1.ConfigFile{},
+				},
 			},
 			expectedPackages: map[string]map[string]util.PackageInfo{
 				"packageone": {"/usr/local/lib/python3.6/site-packages": {Version: "3.6.9", Size: 0}},
@@ -120,9 +130,11 @@ func TestGetPythonPackages(t *testing.T) {
 			descrip: "pythonPathTests, PYTHONPATH",
 			image: pkgutil.Image{
 				FSPath: "testDirs/pipTests/pythonPathTests",
-				Config: pkgutil.ConfigSchema{
-					Config: pkgutil.ConfigObject{
-						Env: []string{"PYTHONPATH=testDirs/pipTests/pythonPathTests/pythonPath1:testDirs/pipTests/pythonPathTests/pythonPath2/subdir", "ENVVAR2=something"},
+				Image: &pkgutil.TestImage{
+					Config: &v1.ConfigFile{
+						Config: v1.Config{
+							Env: []string{"PYTHONPATH=testDirs/pipTests/pythonPathTests/pythonPath1:testDirs/pipTests/pythonPathTests/pythonPath2/subdir", "ENVVAR2=something"},
+						},
 					},
 				},
 			},
@@ -138,9 +150,11 @@ func TestGetPythonPackages(t *testing.T) {
 			descrip: "pythonPathTests, no PYTHONPATH",
 			image: pkgutil.Image{
 				FSPath: "testDirs/pipTests/pythonPathTests",
-				Config: pkgutil.ConfigSchema{
-					Config: pkgutil.ConfigObject{
-						Env: []string{"ENVVAR=something"},
+				Image: &pkgutil.TestImage{
+					Config: &v1.ConfigFile{
+						Config: v1.Config{
+							Env: []string{"ENVVAR=something"},
+						},
 					},
 				},
 			},
@@ -154,7 +168,7 @@ func TestGetPythonPackages(t *testing.T) {
 		d := PipAnalyzer{}
 		packages, _ := d.getPackages(test.image)
 		if !reflect.DeepEqual(packages, test.expectedPackages) {
-			t.Errorf("%s\nExpected: %s\nGot: %s", test.descrip, test.expectedPackages, packages)
+			t.Errorf("%s\nExpected: %v\nGot: %v", test.descrip, test.expectedPackages, packages)
 		}
 	}
 }
