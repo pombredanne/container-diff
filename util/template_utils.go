@@ -78,9 +78,9 @@ PACKAGE	IMAGE1 ({{.Image1}})	IMAGE2 ({{.Image2}}){{range .Diff.InfoDiff}}{{"\n"}
 const HistoryDiffOutput = `
 -----{{.DiffType}}-----
 
-Docker history lines found only in {{.Image1}}:{{if not .Diff.Adds}} None{{else}}{{block "list" .Diff.Adds}}{{"\n"}}{{range .}}{{print "-" .}}{{"\n"}}{{end}}{{end}}{{end}}
+Docker history lines found only in {{.Image1}}:{{if not .Diff.Adds}} None{{else}}{{block "list" .Diff.Dels}}{{"\n"}}{{range .}}{{print "-" .}}{{"\n"}}{{end}}{{end}}{{end}}
 
-Docker history lines found only in {{.Image2}}:{{if not .Diff.Dels}} None{{else}}{{block "list2" .Diff.Dels}}{{"\n"}}{{range .}}{{print "-" .}}{{"\n"}}{{end}}{{end}}{{end}}
+Docker history lines found only in {{.Image2}}:{{if not .Diff.Dels}} None{{else}}{{block "list2" .Diff.Adds}}{{"\n"}}{{range .}}{{print "-" .}}{{"\n"}}{{end}}{{end}}{{end}}
 `
 
 const MetadataDiffOutput = `
@@ -98,6 +98,22 @@ const FilenameDiffOutput = `
 {{.Description}}
 
 {{.Diff}}
+`
+
+const SizeDiffOutput = `
+-----{{.DiffType}}-----
+
+Image size difference between {{.Image1}} and {{.Image2}}:{{if not .Diff}} None{{else}}
+SIZE1	SIZE2{{range .Diff}}{{"\n"}}{{.Size1}}	{{.Size2}}{{end}}
+{{end}}
+`
+
+const SizeLayerDiffOutput = `
+-----{{.DiffType}}-----
+
+Layer size differences between {{.Image1}} and {{.Image2}}:{{if not .Diff}} None{{else}}
+LAYER	SIZE1	SIZE2{{range .Diff}}{{"\n"}}{{.Name}}	{{.Size1}}	{{.Size2}}{{end}}
+{{end}}
 `
 
 const ListAnalysisOutput = `
@@ -124,6 +140,22 @@ FILE	SIZE{{range $analysis}}{{"\n"}}{{.Name}}	{{.Size}}{{end}}
 {{end}}
 `
 
+const SizeAnalysisOutput = `
+-----{{.AnalyzeType}}-----
+
+Analysis for {{.Image}}:{{if not .Analysis}} None{{else}}
+IMAGE	DIGEST	SIZE{{range .Analysis}}{{"\n"}}{{.Name}}	{{.Digest}}	{{.Size}}{{end}}
+{{end}}
+`
+
+const SizeLayerAnalysisOutput = `
+-----{{.AnalyzeType}}-----
+
+Analysis for {{.Image}}:{{if not .Analysis}} None{{else}}
+LAYER	DIGEST	SIZE{{range .Analysis}}{{"\n"}}{{.Name}}	{{.Digest}}	{{.Size}}{{end}}
+{{end}}
+`
+
 const MultiVersionPackageOutput = `
 -----{{.AnalyzeType}}-----
 
@@ -137,5 +169,21 @@ const SingleVersionPackageOutput = `
 
 Packages found in {{.Image}}:{{if not .Analysis}} None{{else}}
 NAME	VERSION	SIZE{{range .Analysis}}{{"\n"}}{{print "-"}}{{.Name}}	{{.Version}}	{{.Size}}{{end}}
+{{end}}
+`
+
+const SingleVersionPackageLayerOutput = `
+-----{{.AnalyzeType}}-----
+{{range $index, $analysis := .Analysis}}
+For Layer {{$index}}:{{if not (or (or $analysis.Packages1 $analysis.Packages2) $analysis.InfoDiff)}} No package changes {{else}}
+{{if ne $index 0}}Deleted packages from previous layers:{{if not $analysis.Packages1}} None{{else}}
+NAME	VERSION	SIZE{{range $analysis.Packages1}}{{"\n"}}{{print "-"}}{{.Name}}	{{.Version}}	{{.Size}}{{end}}{{end}}
+
+{{end}}Packages added in this layer:{{if not $analysis.Packages2}} None{{else}}
+NAME	VERSION	SIZE{{range $analysis.Packages2}}{{"\n"}}{{print "-"}}{{.Name}}	{{.Version}}	{{.Size}}{{end}}{{end}}
+{{if ne $index 0}}
+Version differences:{{if not $analysis.InfoDiff}} None{{else}}
+PACKAGE	PREV_LAYER	CURRENT_LAYER {{range $analysis.InfoDiff}}{{"\n"}}{{print "-"}}{{.Package}}	{{.Info1.Version}}, {{.Info1.Size}}	{{.Info2.Version}}, {{.Info2.Size}}{{end}}
+{{end}}{{end}}{{end}}
 {{end}}
 `

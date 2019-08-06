@@ -8,6 +8,7 @@ Status](https://travis-ci.org/GoogleContainerTools/container-diff.svg?branch=mas
 container-diff is a tool for analyzing and comparing container images. container-diff can examine images along several different criteria, including:
 - Docker Image History
 - Image file system
+- Image size
 - Apt packages
 - RPM packages
 - pip packages
@@ -33,6 +34,12 @@ OR, if you want to avoid using sudo:
 curl -LO https://storage.googleapis.com/container-diff/latest/container-diff-linux-amd64 && chmod +x container-diff-linux-amd64 && mkdir -p $HOME/bin && export PATH=$PATH:$HOME/bin && mv container-diff-linux-amd64 $HOME/bin/container-diff
 ```
 
+There is also an [Arch Linux package](https://www.archlinux.org/packages/community/x86_64/container-diff/). You can install by running:
+
+```shell
+pacman -S container-diff
+```
+
 ### Windows
 Download the [container-diff-windows-amd64.exe](https://storage.googleapis.com/container-diff/latest/container-diff-windows-amd64.exe) file, rename it to `container-diff.exe` and add it to your path
 
@@ -45,6 +52,7 @@ To use `container-diff analyze` to perform analysis on a single image, you need 
 container-diff analyze <img>     [Run default analyzers]
 container-diff analyze <img> --type=history  [History]
 container-diff analyze <img> --type=file  [File System]
+container-diff analyze <img> --type=size  [Size]
 container-diff analyze <img> --type=rpm  [RPM]
 container-diff analyze <img> --type=pip  [Pip]
 container-diff analyze <img> --type=apt  [Apt]
@@ -53,13 +61,14 @@ container-diff analyze <img> --type=apt --type=node  [Apt and Node]
 # --type=<analyzer1> --type=<analyzer2> --type=<analyzer3>,...
 ```
 
-By default, with no `--type` flag specified, container-diff will run Apt package analysis.
+By default, with no `--type` flag specified, container-diff will run image size analysis.
 
 To use container-diff to perform a diff analysis on two images, you need two Docker images (in the form of an ID, tarball, or URL from a repo). Once you have those images, you can run any of the following differs:
 ```shell
 container-diff diff <img1> <img2>     [Run default differs]
 container-diff diff <img1> <img2> --type=history  [History]
 container-diff diff <img1> <img2> --type=file  [File System]
+container-diff diff <img1> <img2> --type=size  [Size]
 container-diff diff <img1> <img2> --type=rpm  [RPM]
 container-diff diff <img1> <img2> --type=pip  [Pip]
 container-diff diff <img1> <img2> --type=apt  [Apt]

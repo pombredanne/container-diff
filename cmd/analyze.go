@@ -17,21 +17,23 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/GoogleContainerTools/container-diff/cmd/util/output"
 	"github.com/GoogleContainerTools/container-diff/differs"
 	pkgutil "github.com/GoogleContainerTools/container-diff/pkg/util"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 var analyzeCmd = &cobra.Command{
-	Use:   "analyze",
-	Short: "Analyzes an image: [image]",
-	Long:  `Analyzes an image using the specifed analyzers as indicated via flags (see documentation for available ones).`,
+	Use:   "analyze image",
+	Short: "Analyzes an image: container-diff image",
+	Long: `Analyzes an image using the specifed analyzers as indicated via --type flag(s).
+
+For details on how to specify images, run: container-diff help`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if err := validateArgs(args, checkAnalyzeArgNum, checkIfValidAnalyzer); err != nil {
 			return err
@@ -56,19 +58,19 @@ func checkAnalyzeArgNum(args []string) error {
 func analyzeImage(imageName string, analyzerArgs []string) error {
 	analyzeTypes, err := differs.GetAnalyzers(analyzerArgs)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "getting analyzers")
 	}
 
-	image, err := getImageForName(imageName)
+	image, err := getImage(imageName)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "error retrieving image %s", imageName)
 	}
 
 	if noCache && !save {
 		defer pkgutil.CleanupImage(image)
 	}
 	if err != nil {
-		return fmt.Errorf("Error processing image: %s", err)
+		return fmt.Errorf("error processing image: %s", err)
 	}
 
 	req := differs.SingleRequest{
@@ -76,7 +78,7 @@ func analyzeImage(imageName string, analyzerArgs []string) error {
 		AnalyzeTypes: analyzeTypes}
 	analyses, err := req.GetAnalysis()
 	if err != nil {
-		return fmt.Errorf("Error performing image analysis: %s", err)
+		return fmt.Errorf("error performing image analysis: %s", err)
 	}
 
 	logrus.Info("retrieving analyses")

@@ -19,6 +19,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/sirupsen/logrus"
 )
@@ -52,7 +53,7 @@ func (r MultiVersionPackageDiffResult) OutputStruct() interface{} {
 	return r
 }
 
-func (r MultiVersionPackageDiffResult) OutputText(diffType string, format string) error {
+func (r MultiVersionPackageDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
 	diff, valid := r.Diff.(MultiVersionPackageDiff)
 	if !valid {
 		logrus.Error("Unexpected structure of Diff.  Should follow the MultiVersionPackageDiff struct")
@@ -84,7 +85,7 @@ func (r MultiVersionPackageDiffResult) OutputText(diffType string, format string
 			InfoDiff:  strInfoDiff,
 		},
 	}
-	return TemplateOutputFromFormat(strResult, "MultiVersionPackageDiff", format)
+	return TemplateOutputFromFormat(writer, strResult, "MultiVersionPackageDiff", format)
 }
 
 func getMultiVersionInfoDiffOutput(infoDiff []MultiVersionInfo) []MultiVersionInfo {
@@ -118,7 +119,7 @@ func (r SingleVersionPackageDiffResult) OutputStruct() interface{} {
 	return r
 }
 
-func (r SingleVersionPackageDiffResult) OutputText(diffType string, format string) error {
+func (r SingleVersionPackageDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
 	diff, valid := r.Diff.(PackageDiff)
 	if !valid {
 		logrus.Error("Unexpected structure of Diff.  Should follow the PackageDiff struct")
@@ -150,7 +151,7 @@ func (r SingleVersionPackageDiffResult) OutputText(diffType string, format strin
 			InfoDiff:  strInfoDiff,
 		},
 	}
-	return TemplateOutputFromFormat(strResult, "SingleVersionPackageDiff", format)
+	return TemplateOutputFromFormat(writer, strResult, "SingleVersionPackageDiff", format)
 }
 
 func getSingleVersionInfoDiffOutput(infoDiff []Info) []Info {
@@ -162,14 +163,80 @@ func getSingleVersionInfoDiffOutput(infoDiff []Info) []Info {
 	return infoDiff
 }
 
+type SingleVersionPackageLayerDiffResult DiffResult
+
+func (r SingleVersionPackageLayerDiffResult) OutputStruct() interface{} {
+	diff, valid := r.Diff.(PackageLayerDiff)
+	if !valid {
+		logrus.Error("Unexpected structure of Diff.  Should follow the PackageLayerDiff struct")
+		return fmt.Errorf("Could not output %s diff result", r.DiffType)
+	}
+
+	type PkgDiff struct {
+		Packages1 []PackageOutput
+		Packages2 []PackageOutput
+		InfoDiff  []Info
+	}
+
+	var diffOutputs []PkgDiff
+	for _, d := range diff.PackageDiffs {
+		diffOutput := PkgDiff{
+			Packages1: getSingleVersionPackageOutput(d.Packages1),
+			Packages2: getSingleVersionPackageOutput(d.Packages2),
+			InfoDiff:  getSingleVersionInfoDiffOutput(d.InfoDiff),
+		}
+		diffOutputs = append(diffOutputs, diffOutput)
+	}
+
+	r.Diff = diffOutputs
+	return r
+}
+
+func (r SingleVersionPackageLayerDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
+	diff, valid := r.Diff.(PackageLayerDiff)
+	if !valid {
+		logrus.Error("Unexpected structure of Diff.  Should follow the PackageLayerDiff struct")
+		return fmt.Errorf("Could not output %s diff result", r.DiffType)
+	}
+
+	type StrDiff struct {
+		Packages1 []StrPackageOutput
+		Packages2 []StrPackageOutput
+		InfoDiff  []StrInfo
+	}
+
+	var diffOutputs []StrDiff
+	for _, d := range diff.PackageDiffs {
+		diffOutput := StrDiff{
+			Packages1: stringifyPackages(getSingleVersionPackageOutput(d.Packages1)),
+			Packages2: stringifyPackages(getSingleVersionPackageOutput(d.Packages2)),
+			InfoDiff:  stringifyPackageDiff(getSingleVersionInfoDiffOutput(d.InfoDiff)),
+		}
+		diffOutputs = append(diffOutputs, diffOutput)
+	}
+
+	strResult := struct {
+		Image1   string
+		Image2   string
+		DiffType string
+		Diff     []StrDiff
+	}{
+		Image1:   r.Image1,
+		Image2:   r.Image2,
+		DiffType: r.DiffType,
+		Diff:     diffOutputs,
+	}
+	return TemplateOutputFromFormat(writer, strResult, "SingleVersionPackageLayerDiff", format)
+}
+
 type HistDiffResult DiffResult
 
 func (r HistDiffResult) OutputStruct() interface{} {
 	return r
 }
 
-func (r HistDiffResult) OutputText(diffType string, format string) error {
-	return TemplateOutputFromFormat(r, "HistDiff", format)
+func (r HistDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
+	return TemplateOutputFromFormat(writer, r, "HistDiff", format)
 }
 
 type MetadataDiffResult DiffResult
@@ -178,8 +245,8 @@ func (r MetadataDiffResult) OutputStruct() interface{} {
 	return r
 }
 
-func (r MetadataDiffResult) OutputText(diffType string, format string) error {
-	return TemplateOutputFromFormat(r, "MetadataDiff", format)
+func (r MetadataDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
+	return TemplateOutputFromFormat(writer, r, "MetadataDiff", format)
 }
 
 type DirDiffResult DiffResult
@@ -195,7 +262,7 @@ func (r DirDiffResult) OutputStruct() interface{} {
 	return r
 }
 
-func (r DirDiffResult) OutputText(diffType string, format string) error {
+func (r DirDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
 	diff, valid := r.Diff.(DirDiff)
 	if !valid {
 		logrus.Error("Unexpected structure of Diff.  Should follow the DirDiff struct")
@@ -228,7 +295,79 @@ func (r DirDiffResult) OutputText(diffType string, format string) error {
 			Mods: strMods,
 		},
 	}
-	return TemplateOutputFromFormat(strResult, "DirDiff", format)
+	return TemplateOutputFromFormat(writer, strResult, "DirDiff", format)
+}
+
+type SizeDiffResult DiffResult
+
+func (r SizeDiffResult) OutputStruct() interface{} {
+	diff, valid := r.Diff.([]SizeDiff)
+	if !valid {
+		logrus.Error("Unexpected structure of Diff.  Should be of type []SizeDiff")
+		return errors.New("Could not output SizeAnalyzer diff result")
+	}
+
+	r.Diff = diff
+	return r
+}
+
+func (r SizeDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
+	diff, valid := r.Diff.([]SizeDiff)
+	if !valid {
+		logrus.Error("Unexpected structure of Diff.  Should be of type []SizeDiff")
+		return errors.New("Could not output SizeAnalyzer diff result")
+	}
+
+	strDiff := stringifySizeDiffs(diff)
+
+	strResult := struct {
+		Image1   string
+		Image2   string
+		DiffType string
+		Diff     []StrSizeDiff
+	}{
+		Image1:   r.Image1,
+		Image2:   r.Image2,
+		DiffType: r.DiffType,
+		Diff:     strDiff,
+	}
+	return TemplateOutputFromFormat(writer, strResult, "SizeDiff", format)
+}
+
+type SizeLayerDiffResult DiffResult
+
+func (r SizeLayerDiffResult) OutputStruct() interface{} {
+	diff, valid := r.Diff.([]SizeDiff)
+	if !valid {
+		logrus.Error("Unexpected structure of Diff.  Should be of type []SizeDiff")
+		return errors.New("Could not output SizeLayerAnalyzer diff result")
+	}
+
+	r.Diff = diff
+	return r
+}
+
+func (r SizeLayerDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
+	diff, valid := r.Diff.([]SizeDiff)
+	if !valid {
+		logrus.Error("Unexpected structure of Diff.  Should be of type []SizeDiff")
+		return errors.New("Could not output SizeLayerAnalyzer diff result")
+	}
+
+	strDiff := stringifySizeDiffs(diff)
+
+	strResult := struct {
+		Image1   string
+		Image2   string
+		DiffType string
+		Diff     []StrSizeDiff
+	}{
+		Image1:   r.Image1,
+		Image2:   r.Image2,
+		DiffType: r.DiffType,
+		Diff:     strDiff,
+	}
+	return TemplateOutputFromFormat(writer, strResult, "SizeLayerDiff", format)
 }
 
 type MultipleDirDiffResult DiffResult
@@ -246,7 +385,7 @@ func (r MultipleDirDiffResult) OutputStruct() interface{} {
 	return r
 }
 
-func (r MultipleDirDiffResult) OutputText(diffType string, format string) error {
+func (r MultipleDirDiffResult) OutputText(writer io.Writer, diffType string, format string) error {
 	diff, valid := r.Diff.(MultipleDirDiff)
 	if !valid {
 		logrus.Error("Unexpected structure of Diff.  Should follow the MultipleDirDiff struct")
@@ -290,5 +429,5 @@ func (r MultipleDirDiffResult) OutputText(diffType string, format string) error 
 		DiffType: r.DiffType,
 		Diff:     strDiffs,
 	}
-	return TemplateOutputFromFormat(strResult, "MultipleDirDiff", format)
+	return TemplateOutputFromFormat(writer, strResult, "MultipleDirDiff", format)
 }

@@ -118,6 +118,22 @@ func TestDiffAndAnalysis(t *testing.T) {
 			expectedFile: "file_layer_diff_expected.json",
 		},
 		{
+			description:  "size differ",
+			subcommand:   "diff",
+			imageA:       diffLayerBase,
+			imageB:       diffLayerModifed,
+			differFlags:  []string{"--type=size", "--no-cache"},
+			expectedFile: "size_diff_expected.json",
+		},
+		{
+			description:  "size layer differ",
+			subcommand:   "diff",
+			imageA:       diffLayerBase,
+			imageB:       diffLayerModifed,
+			differFlags:  []string{"--type=sizelayer", "--no-cache"},
+			expectedFile: "size_layer_diff_expected.json",
+		},
+		{
 			description:  "apt differ",
 			subcommand:   "diff",
 			imageA:       aptBase,
@@ -125,14 +141,6 @@ func TestDiffAndAnalysis(t *testing.T) {
 			differFlags:  []string{"--type=apt", "--no-cache"},
 			expectedFile: "apt_diff_expected.json",
 		},
-		// {
-		// 	description:  "rpm differ",
-		// 	subcommand:   "diff",
-		// 	imageA:       rpmBase,
-		// 	imageB:       rpmModified,
-		// 	differFlags:  []string{"--type=rpm"},
-		// 	expectedFile: "rpm_diff_expected.json",
-		// },
 		{
 			description:  "node differ",
 			subcommand:   "diff",
@@ -188,13 +196,6 @@ func TestDiffAndAnalysis(t *testing.T) {
 			differFlags:  []string{"--type=apt", "--no-cache"},
 			expectedFile: "apt_analysis_expected.json",
 		},
-		// {
-		// 	description:  "rpm analysis",
-		// 	subcommand:   "analyze",
-		// 	imageA:       rpmModified,
-		// 	differFlags:  []string{"--type=rpm"},
-		// 	expectedFile: "rpm_analysis_expected.json",
-		// },
 		{
 			description:  "file sorted analysis",
 			subcommand:   "analyze",
@@ -208,6 +209,20 @@ func TestDiffAndAnalysis(t *testing.T) {
 			imageA:       diffLayerBase,
 			differFlags:  []string{"--type=layer", "--no-cache"},
 			expectedFile: "file_layer_analysis_expected.json",
+		},
+		{
+			description:  "size analysis",
+			subcommand:   "analyze",
+			imageA:       diffBase,
+			differFlags:  []string{"--type=size", "--no-cache"},
+			expectedFile: "size_analysis_expected.json",
+		},
+		{
+			description:  "size layer analysis",
+			subcommand:   "analyze",
+			imageA:       diffLayerBase,
+			differFlags:  []string{"--type=sizelayer", "--no-cache"},
+			expectedFile: "size_layer_analysis_expected.json",
 		},
 		{
 			description:  "pip analysis",

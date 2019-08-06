@@ -24,6 +24,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const historyAnalyzer = "history"
+const metadataAnalyzer = "metadata"
+const fileAnalyzer = "file"
+const layerAnalyzer = "layer"
+const sizeAnalyzer = "size"
+const sizeLayerAnalyzer = "sizelayer"
+const aptAnalyzer = "apt"
+const aptLayerAnalyzer = "aptlayer"
+const rpmAnalyzer = "rpm"
+const rpmLayerAnalyzer = "rpmlayer"
+const pipAnalyzer = "pip"
+const nodeAnalyzer = "node"
+
 type DiffRequest struct {
 	Image1    pkgutil.Image
 	Image2    pkgutil.Image
@@ -42,15 +55,21 @@ type Analyzer interface {
 }
 
 var Analyzers = map[string]Analyzer{
-	"history":  HistoryAnalyzer{},
-	"metadata": MetadataAnalyzer{},
-	"file":     FileAnalyzer{},
-	"layer":    FileLayerAnalyzer{},
-	"apt":      AptAnalyzer{},
-	"rpm":      RPMAnalyzer{},
-	"pip":      PipAnalyzer{},
-	"node":     NodeAnalyzer{},
+	historyAnalyzer:   HistoryAnalyzer{},
+	metadataAnalyzer:  MetadataAnalyzer{},
+	fileAnalyzer:      FileAnalyzer{},
+	layerAnalyzer:     FileLayerAnalyzer{},
+	sizeAnalyzer:      SizeAnalyzer{},
+	sizeLayerAnalyzer: SizeLayerAnalyzer{},
+	aptAnalyzer:       AptAnalyzer{},
+	aptLayerAnalyzer:  AptLayerAnalyzer{},
+	rpmAnalyzer:       RPMAnalyzer{},
+	rpmLayerAnalyzer:  RPMLayerAnalyzer{},
+	pipAnalyzer:       PipAnalyzer{},
+	nodeAnalyzer:      NodeAnalyzer{},
 }
+
+var LayerAnalyzers = [...]string{layerAnalyzer, sizeLayerAnalyzer, aptLayerAnalyzer, rpmLayerAnalyzer}
 
 func (req DiffRequest) GetDiff() (map[string]util.Result, error) {
 	img1 := req.Image1
@@ -62,13 +81,13 @@ func (req DiffRequest) GetDiff() (map[string]util.Result, error) {
 		if diff, err := differ.Diff(img1, img2); err == nil {
 			results[differ.Name()] = diff
 		} else {
-			logrus.Errorf("Error getting diff with %s: %s", differ.Name(), err)
+			logrus.Errorf("error getting diff with %s: %s", differ.Name(), err)
 		}
 	}
 
 	var err error
 	if len(results) == 0 {
-		err = fmt.Errorf("Could not perform diff on %v and %v", img1, img2)
+		err = fmt.Errorf("could not perform diff on %v and %v", img1, img2)
 	} else {
 		err = nil
 	}
@@ -86,13 +105,13 @@ func (req SingleRequest) GetAnalysis() (map[string]util.Result, error) {
 		if analysis, err := analyzer.Analyze(img); err == nil {
 			results[analyzeName] = analysis
 		} else {
-			logrus.Errorf("Error getting analysis with %s: %s", analyzeName, err)
+			logrus.Errorf("error getting analysis with %s: %s", analyzeName, err)
 		}
 	}
 
 	var err error
 	if len(results) == 0 {
-		err = fmt.Errorf("Could not perform analysis on %v", img)
+		err = fmt.Errorf("could not perform analysis on %v", img)
 	} else {
 		err = nil
 	}
@@ -106,11 +125,11 @@ func GetAnalyzers(analyzeNames []string) ([]Analyzer, error) {
 		if a, exists := Analyzers[name]; exists {
 			analyzeFuncs = append(analyzeFuncs, a)
 		} else {
-			return nil, fmt.Errorf("Unknown analyzer/differ specified: %s", name)
+			return nil, fmt.Errorf("unknown analyzer/differ specified: %s", name)
 		}
 	}
 	if len(analyzeFuncs) == 0 {
-		return nil, fmt.Errorf("No known analyzers/differs specified")
+		return nil, fmt.Errorf("no known analyzers/differs specified")
 	}
 	return analyzeFuncs, nil
 }
