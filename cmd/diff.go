@@ -35,7 +35,7 @@ var filename string
 
 var diffCmd = &cobra.Command{
 	Use:   "diff image1 image2",
-	Short: "Compare two images: container-diff image1 image2",
+	Short: "Compare two images: container-diff diff image1 image2",
 	Long: `Compares two images using the specifed analyzers as indicated via --type flag(s).
 
 For details on how to specify images, run: container-diff help`,
@@ -85,11 +85,7 @@ func processImage(imageName string, errChan chan<- error) *pkgutil.Image {
 // assumes channel has already been closed
 func readErrorsFromChannel(c chan error) error {
 	errs := []string{}
-	for {
-		err, ok := <-c
-		if !ok {
-			break
-		}
+	for err := range c {
 		errs = append(errs, err.Error())
 	}
 

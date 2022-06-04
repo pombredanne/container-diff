@@ -35,32 +35,32 @@ import (
 )
 
 const (
-	diffBase     = "gcr.io/gcp-runtimes/diff-base"
-	diffModified = "gcr.io/gcp-runtimes/diff-modified"
+	diffBase     = "gcr.io/gcp-runtimes/container-diff-tests/diff-base"
+	diffModified = "gcr.io/gcp-runtimes/container-diff-tests/diff-modified"
 
-	diffLayerBase    = "gcr.io/gcp-runtimes/diff-layer-base"
-	diffLayerModifed = "gcr.io/gcp-runtimes/diff-layer-modified"
+	diffLayerBase     = "gcr.io/gcp-runtimes/container-diff-tests/diff-layer-base"
+	diffLayerModified = "gcr.io/gcp-runtimes/container-diff-tests/diff-layer-modified"
 
-	metadataBase     = "gcr.io/gcp-runtimes/metadata-base"
-	metadataModified = "gcr.io/gcp-runtimes/metadata-modified"
+	metadataBase     = "gcr.io/gcp-runtimes/container-diff-tests/metadata-base"
+	metadataModified = "gcr.io/gcp-runtimes/container-diff-tests/metadata-modified"
 
-	aptBase     = "gcr.io/gcp-runtimes/apt-base"
-	aptModified = "gcr.io/gcp-runtimes/apt-modified"
+	aptBase     = "gcr.io/gcp-runtimes/container-diff-tests/apt-base"
+	aptModified = "gcr.io/gcp-runtimes/container-diff-tests/apt-modified"
 
 	rpmBase     = "valentinrothberg/containerdiff:diff-base"
 	rpmModified = "valentinrothberg/containerdiff:diff-modified"
 
 	// Why is this node-modified:2.0?
-	nodeBase     = "gcr.io/gcp-runtimes/node-modified:2.0"
-	nodeModified = "gcr.io/gcp-runtimes/node-modified"
+	nodeBase     = "gcr.io/gcp-runtimes/container-diff-tests/node-modified:2.0"
+	nodeModified = "gcr.io/gcp-runtimes/container-diff-tests/node-modified"
 
-	pipModified = "gcr.io/gcp-runtimes/pip-modified"
+	pipModified = "gcr.io/gcp-runtimes/container-diff-tests/pip-modified"
 
-	multiBase     = "gcr.io/gcp-runtimes/multi-base"
-	multiModified = "gcr.io/gcp-runtimes/multi-modified"
+	multiBase     = "gcr.io/gcp-runtimes/container-diff-tests/multi-base"
+	multiModified = "gcr.io/gcp-runtimes/container-diff-tests/multi-modified"
 
-	multiBaseLocal     = "daemon://gcr.io/gcp-runtimes/multi-base"
-	multiModifiedLocal = "daemon://gcr.io/gcp-runtimes/multi-modified"
+	multiBaseLocal     = "daemon://gcr.io/gcp-runtimes/container-diff-tests/multi-base"
+	multiModifiedLocal = "daemon://gcr.io/gcp-runtimes/container-diff-tests/multi-modified"
 )
 
 type ContainerDiffRunner struct {
@@ -113,7 +113,7 @@ func TestDiffAndAnalysis(t *testing.T) {
 			description:  "file layer differ",
 			subcommand:   "diff",
 			imageA:       diffLayerBase,
-			imageB:       diffLayerModifed,
+			imageB:       diffLayerModified,
 			differFlags:  []string{"--type=layer", "--no-cache"},
 			expectedFile: "file_layer_diff_expected.json",
 		},
@@ -121,7 +121,7 @@ func TestDiffAndAnalysis(t *testing.T) {
 			description:  "size differ",
 			subcommand:   "diff",
 			imageA:       diffLayerBase,
-			imageB:       diffLayerModifed,
+			imageB:       diffLayerModified,
 			differFlags:  []string{"--type=size", "--no-cache"},
 			expectedFile: "size_diff_expected.json",
 		},
@@ -129,7 +129,7 @@ func TestDiffAndAnalysis(t *testing.T) {
 			description:  "size layer differ",
 			subcommand:   "diff",
 			imageA:       diffLayerBase,
-			imageB:       diffLayerModifed,
+			imageB:       diffLayerModified,
 			differFlags:  []string{"--type=sizelayer", "--no-cache"},
 			expectedFile: "size_layer_diff_expected.json",
 		},
@@ -195,20 +195,6 @@ func TestDiffAndAnalysis(t *testing.T) {
 			imageA:       aptModified,
 			differFlags:  []string{"--type=apt", "--no-cache"},
 			expectedFile: "apt_analysis_expected.json",
-		},
-		{
-			description:  "file sorted analysis",
-			subcommand:   "analyze",
-			imageA:       diffModified,
-			differFlags:  []string{"--type=file", "-o", "--no-cache"},
-			expectedFile: "file_sorted_analysis_expected.json",
-		},
-		{
-			description:  "file layer analysis",
-			subcommand:   "analyze",
-			imageA:       diffLayerBase,
-			differFlags:  []string{"--type=layer", "--no-cache"},
-			expectedFile: "file_layer_analysis_expected.json",
 		},
 		{
 			description:  "size analysis",
@@ -297,4 +283,128 @@ func TestMain(m *testing.M) {
 
 	closer.Close()
 	os.Exit(m.Run())
+}
+
+func TestConsoleOutput(t *testing.T) {
+	runner := ContainerDiffRunner{
+		t:          t,
+		binaryPath: "../out/container-diff",
+	}
+
+	tests := []struct {
+		description    string
+		subCommand     string
+		extraFlag      string
+		expectedOutput []string
+		producesError  bool
+	}{
+		{
+			description: "analysis --help",
+			subCommand:  "analyze",
+			extraFlag:   "--help",
+			expectedOutput: []string{
+				"Analyzes an image using the specifed analyzers as indicated via --type flag(s).",
+				"For details on how to specify images, run: container-diff help",
+				"container-diff",
+				"-c, --cache-dir string",
+				"-j, --json",
+				"-w, --output string",
+				"-t, --type multiValueFlag",
+			},
+		},
+		{
+			description: "analysis help",
+			subCommand:  "analyze",
+			extraFlag:   "help",
+			expectedOutput: []string{
+				"Analyzes an image using the specifed analyzers as indicated via --type flag(s).",
+				"For details on how to specify images, run: container-diff help",
+				"container-diff",
+				"-c, --cache-dir string",
+				"-j, --json",
+				"-w, --output string",
+				"-t, --type multiValueFlag",
+			},
+		},
+		{
+			description: "container-diff --help",
+			subCommand:  "--help",
+			extraFlag:   "",
+			expectedOutput: []string{
+				"container-diff is a CLI tool for analyzing and comparing container images.",
+				"Images can be specified from either a local Docker daemon, or from a remote registry.",
+				"analyze",
+				"diff",
+				"--format string",
+				"--skip-tls-verify-registry multiValueFlag",
+				"-v, --verbosity string",
+			},
+		},
+		{
+			description: "container-diff help",
+			subCommand:  "help",
+			extraFlag:   "",
+			expectedOutput: []string{
+				"container-diff is a CLI tool for analyzing and comparing container images.",
+				"Images can be specified from either a local Docker daemon, or from a remote registry.",
+				"analyze",
+				"diff",
+				"--format string",
+				"--skip-tls-verify-registry multiValueFlag",
+				"-v, --verbosity string",
+			},
+		},
+		{
+			description: "container-diff diff --help",
+			subCommand:  "diff",
+			extraFlag:   "--help",
+			expectedOutput: []string{
+				"Compares two images using the specifed analyzers as indicated via --type flag(s).",
+				"For details on how to specify images, run: container-diff help",
+				"container-diff diff image1 image2 [flags]",
+				"-c, --cache-dir string",
+				"-j, --json",
+				"-w, --output string",
+				"--skip-tls-verify-registry multiValueFlag",
+			},
+		},
+		{
+			description: "container-diff diff --help",
+			subCommand:  "diff",
+			extraFlag:   "help",
+			expectedOutput: []string{
+				"Error: 'diff' requires two images as arguments: container-diff diff [image1] [image2]",
+				"container-diff diff image1 image2 [flags]",
+				"-c, --cache-dir string",
+				"-j, --json",
+				"-w, --output string",
+				"--skip-tls-verify-registry multiValueFlag",
+			},
+			producesError: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			t.Parallel()
+			args := []string{test.subCommand}
+			if test.extraFlag != "" {
+				args = append(args, test.extraFlag)
+			}
+			actual, stderr, err := runner.Run(args...)
+			if err != nil {
+				if test.producesError {
+					actual = err.Error()
+				} else {
+					t.Fatalf("Error running command: %s. Stderr: %s", err, stderr)
+				}
+			}
+			actual = strings.TrimSpace(actual)
+			for _, expectedLine := range test.expectedOutput {
+				if !strings.Contains(actual, expectedLine) {
+					t.Errorf("Error actual output does not contain expected line.  \n\nExpected: %s\n\n Actual: %s\n\n, Stderr: %s", expectedLine, actual, stderr)
+				}
+			}
+
+		})
+	}
 }

@@ -24,12 +24,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"sync"
+	"sync/atomic"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
-
-// Map of target:linkname
-var hardlinks = make(map[string]string)
 
 type OriginalPerm struct {
 	path string
@@ -37,6 +37,9 @@ type OriginalPerm struct {
 }
 
 func unpackTar(tr *tar.Reader, path string, whitelist []string) error {
+	// Thread safe Map of target:linkname
+	var hardlinks sync.Map
+
 	originalPerms := make([]OriginalPerm, 0)
 	for {
 		header, err := tr.Next()
@@ -134,19 +137,26 @@ func unpackTar(tr *tar.Reader, path string, whitelist []string) error {
 				// If it exists, create the hard link
 				resolveHardlink(linkname, target)
 			} else {
-				hardlinks[target] = linkname
+				hardlinks.Store(target, linkname)
 			}
 		}
 	}
-
-	for target, linkname := range hardlinks {
+	var resolveError atomic.Value
+	hardlinks.Range(func(key, value interface{}) bool {
+		target := key.(string)
+		linkname := value.(string)
 		logrus.Info("Resolving hard links")
 		if _, err := os.Stat(linkname); !os.IsNotExist(err) {
 			// If it exists, create the hard link
 			if err := resolveHardlink(linkname, target); err != nil {
-				return errors.Wrap(err, fmt.Sprintf("Unable to create hard link from %s to %s", linkname, target))
+				resolveError.Store(errors.Wrap(err, fmt.Sprintf("Unable to create hard link from %s to %s", linkname, target)))
+				return false
 			}
 		}
+		return true
+	})
+	if resolveError.Load() != nil {
+		return resolveError.Load().(error)
 	}
 
 	// reset all original file
